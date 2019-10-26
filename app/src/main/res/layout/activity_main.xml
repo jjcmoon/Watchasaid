@@ -26,9 +26,9 @@
                 android:layout_height="wrap_content"
                 android:clickable="true"
                 android:ems="10"
-                android:focusable="auto"
+                android:focusable="false"
                 android:inputType="none"
-                android:text="Watchasaid" />
+                android:text="Watchasaid?" />
 
             <Button
                 android:id="@+id/button3"

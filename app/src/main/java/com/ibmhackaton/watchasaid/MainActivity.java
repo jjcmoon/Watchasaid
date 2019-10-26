@@ -7,12 +7,22 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.support.wearable.activity.WearableActivity;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -28,6 +38,12 @@ import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
 public class MainActivity extends WearableActivity {
 
     private static final int RECORDER_SAMPLERATE = 44100;
@@ -41,9 +57,13 @@ public class MainActivity extends WearableActivity {
     private int bufferSize = 2048;
 
     private int BYTES_PER_SECONDS = RECORDER_SAMPLERATE * 2;
-    private final static int RECSS = 30;
+    private int RECSS = 30;
 
     private RecordingProcessor recordingProcessor;
+
+
+    private static final String CONSUMER_KEY = "jeroenvanderdonckt";
+    private static final String CONSUMER_SECRET = "5066ecbcdaf45c34";
 
 
     @Override
@@ -61,6 +81,19 @@ public class MainActivity extends WearableActivity {
         //Timer timer = new Timer();
         //TimerTask clamping = new ClamperTask(new File(getPath("test.pcm")), RECSS*BYTES_PER_SECONDS);
         //timer.scheduleAtFixedRate(clamping, 100, RECSS*1000);
+
+        /*
+        noteSession = new EvernoteSession.Builder(this)
+                .setEvernoteService(EVERNOTE_SERVICE)
+                .setSupportAppLinkedNotebooks(false)
+                .build(CONSUMER_KEY, CONSUMER_SECRET)
+                .asSingleton();
+
+        noteSession.authenticate(this);
+
+         */
+
+
 
     }
 
@@ -117,11 +150,62 @@ public class MainActivity extends WearableActivity {
 
     }
 
+    private String parseIBM_data(String json) {
+        System.out.println(json);
+        try {
+            final JSONObject obj = new JSONObject(json);
+            JSONArray array = obj.getJSONArray("results");
+            JSONArray result = new JSONArray();
+            for (int i=0; i<array.length(); i++) {
+                String t = array.getJSONObject(i).getJSONArray("alternatives").getJSONObject(0).getString("transcript");
+                System.out.println(t);
+                result.put(t);
+            }
+            return result.toString();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    public void sendToSlack(String text) {
+        OkHttpClient client2 = new OkHttpClient();
+        MediaType mediaType = MediaType.parse("application/json");
+
+        String content = "{\"text\" : \"" + StringEscapeUtils.escapeJson(parseIBM_data(text)) +"\"}";
+        RequestBody body = RequestBody.create(mediaType, content);
+        Request request2 = new Request.Builder()
+                .url("https://hooks.slack.com/services/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")
+                .post(body)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "*/*")
+                .addHeader("Cache-Control", "no-cache")
+                .addHeader("Host", "hooks.slack.com")
+                .addHeader("accept-encoding", "gzip, deflate")
+                .addHeader("Connection", "keep-alive")
+                .addHeader("cache-control", "no-cache")
+                .build();
+        try {
+            Response response2 = client2.newCall(request2).execute();
+            System.out.println(response2);
+            System.out.println(content);
+            System.out.println(request2.toString());
+            System.out.println(response2.message());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
     public void saveRecordingText(String text) {
         try {
             PrintWriter out = new PrintWriter(getPath("recording.txt"));
             out.print(text);
             out.close();
+
+            //parseIBM_data(text);
+            sendToSlack(text);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -144,6 +228,10 @@ public class MainActivity extends WearableActivity {
         recordingThread.start();
     }
 
+
+    public void setRecorderLength(int s) {
+        this.RECSS = s;
+    }
 
 
     public String getPath(String app) {
