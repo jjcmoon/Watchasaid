@@ -9,7 +9,10 @@ import android.os.Bundle;
 import android.support.wearable.activity.WearableActivity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -41,10 +44,12 @@ public class MainActivity extends WearableActivity {
     private int bufferSize = 2048;
 
     private int BYTES_PER_SECONDS = RECORDER_SAMPLERATE * 2;
-    private final static int RECSS = 30;
+    private final static int RECSS = 18001;
+    private final static int DEFAULT_RECSS = 30;
 
     private RecordingProcessor recordingProcessor;
 
+    SeekBar simpleSeekBar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,9 +63,79 @@ public class MainActivity extends WearableActivity {
         requestPermissions();
         startRecording();
 
+        System.out.println("seekbar init");
+
         //Timer timer = new Timer();
         //TimerTask clamping = new ClamperTask(new File(getPath("test.pcm")), RECSS*BYTES_PER_SECONDS);
         //timer.scheduleAtFixedRate(clamping, 100, RECSS*1000);
+
+        simpleSeekBar=(SeekBar)findViewById(R.id.seekBar);
+        // perform seek bar change listener event used for getting the progress value
+        simpleSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            int progressChangedValue = 0;
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                System.out.println("seekbar progress "+progress);
+                progressChangedValue = progress;
+                EditText st = (EditText) findViewById(R.id.sliderTime);
+                int sec = progress;
+                int min = sec / 60;
+                sec = sec % 60;
+                String t = Integer.toString(min) + "m " + Integer.toString(sec) + "s";
+                st.setText(t);
+                seekBar.setProgress(1);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                System.out.println("seekbar starttrack");
+                int sec = seekBar.getProgress();
+                int min = sec / 60;
+                sec = sec % 60;
+                String t = Integer.toString(min) + "m " + Integer.toString(sec) + "s";
+                EditText st = (EditText) findViewById(R.id.sliderTime);
+                st.setText(t);
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                System.out.println("seekbar stoptrack");
+                saveRecording(seekBar.getProgress());
+                EditText st = (EditText) findViewById(R.id.sliderTime);
+                String t = "Saved " + Integer.toString( seekBar.getProgress()) + "s";
+                st.setText(t);
+
+            }
+        });
+
+    }
+
+    public void saveRecording(int seconds) {
+        // Do something in response to button click
+        System.out.println("recording started" + seconds + '\n');
+        TextView v = findViewById(R.id.editText2);
+        int sec = seconds;
+        int min = sec / 60;
+        sec = sec % 60;
+        String t = Integer.toString(min) + "m " + Integer.toString(sec) + "s" + "saved!";
+        v.setText(t);
+
+
+        try {
+            File from = new File(getPath("test.pcm"));
+            clamp_pcm(from, seconds);
+            File to = new File(getPath("recording.wav"));
+            rawToWave(from, to);
+            System.out.println("Made WAV");
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.out.println("FAILED WAV");
+            return;
+        }
+
+        recordingProcessor.process(getPath("recording.wav"), this );
+        System.out.println("recording saved");
 
     }
 
@@ -98,6 +173,7 @@ public class MainActivity extends WearableActivity {
      */
     public void saveRecording(View view) {
         // Do something in response to button click
+        System.out.println("recording started");
         TextView v = findViewById(R.id.editText2);
         v.setText("File saved!");
 
@@ -114,7 +190,7 @@ public class MainActivity extends WearableActivity {
         }
 
         recordingProcessor.process(getPath("recording.wav"), this );
-
+        System.out.println("recording saved");
     }
 
     public void saveRecordingText(String text) {
@@ -205,9 +281,12 @@ public class MainActivity extends WearableActivity {
         return super.onKeyDown(keyCode, event);
     }
 
+    private void clamp_pcm(File rawFile, int length) throws IOException {
+        ClamperTask.clamp_pcm(rawFile, length * BYTES_PER_SECONDS);
+    }
 
     private void clamp_pcm(File rawFile) throws IOException {
-        ClamperTask.clamp_pcm(rawFile, RECSS * BYTES_PER_SECONDS);
+        ClamperTask.clamp_pcm(rawFile, DEFAULT_RECSS * BYTES_PER_SECONDS);
     }
 
 
